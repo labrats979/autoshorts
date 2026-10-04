@@ -3,5 +3,13 @@
   "identifier": "default",
   "description": "AutoShorts desktop capabilities",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:default"]
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "clerk:default",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://*" }]
+    }
+  ]
 }

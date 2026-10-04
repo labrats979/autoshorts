@@ -650,6 +650,20 @@ fn delete_project(state: tauri::State<'_, AppState>, project_id: String) -> Resu
     state.db.delete_project(&project_id).map_err(to_command_error)
 }
 
+/// Clerk is optional: read the publishable key from .env at runtime, falling back to the
+/// value baked in at compile time (release builds).
+fn clerk_publishable_key() -> Option<String> {
+    std::env::var("CLERK_PUBLISHABLE_KEY")
+        .ok()
+        .or_else(|| option_env!("CLERK_PUBLISHABLE_KEY").map(ToOwned::to_owned))
+        .filter(|key| !key.trim().is_empty())
+}
+
+#[tauri::command]
+fn clerk_enabled() -> bool {
+    clerk_publishable_key().is_some()
+}
+
 #[tauri::command]
 fn import_synced_project(
     state: tauri::State<'_, AppState>,
@@ -675,8 +689,19 @@ fn rename_project(
 pub fn run() {
     let _ = dotenvy::dotenv();
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_http::init());
+
+    if let Some(key) = clerk_publishable_key() {
+        builder = builder.plugin(
+            tauri_plugin_clerk::ClerkPluginBuilder::new()
+                .publishable_key(key)
+                .build(),
+        );
+    }
+
+    builder
         .setup(|app| {
             let data_dir = app
                 .path()
@@ -705,6 +730,7 @@ pub fn run() {
             delete_project,
             rename_project,
             import_synced_project,
+            clerk_enabled,
             check_youtube_copyright,
             download_youtube_video
         ])

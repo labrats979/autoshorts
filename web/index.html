@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoShorts</title>
+    <meta name="description" content="Turn long recordings into vertical short-form clips with AI-ranked viral moments. Local-first desktop app." />
+    <link rel="icon" href="/icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #0c0d12;
+        --panel: #13161c;
+        --border: rgba(255, 255, 255, 0.08);
+        --accent: #8ee6c7;
+        --accent-text: #0b0c10;
+        --text: #f3f4f6;
+        --muted: #a0aec0;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 48px 16px;
+        color: var(--text);
+        background: var(--bg);
+        font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+      }
+      main { width: 100%; max-width: 680px; }
+      .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 40px; }
+      .brand img { width: 40px; height: 40px; border-radius: 10px; }
+      .brand span { font-weight: 800; font-size: 18px; letter-spacing: -0.3px; }
+      h1 { margin: 0 0 16px; font-size: clamp(32px, 7vw, 52px); line-height: 1.05; letter-spacing: -1.5px; font-weight: 800; }
+      h1 em { font-style: normal; color: var(--accent); }
+      p.lede { margin: 0 0 32px; color: var(--muted); font-size: 17px; line-height: 1.6; }
+      .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 56px; }
+      .cta a {
+        display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px;
+        border-radius: 10px; font-weight: 700; font-size: 14px; text-decoration: none;
+      }
+      .cta .primary { color: var(--accent-text); background: var(--accent); }
+      .cta .secondary { color: var(--text); border: 1px solid var(--border); }
+      ul.features { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+      ul.features li { padding: 18px 20px; background: var(--panel); }
+      ul.features strong { display: block; margin-bottom: 4px; font-size: 14px; }
+      ul.features span { color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+      footer { margin-top: 40px; color: var(--muted); font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="brand">
+        <img src="/icon.png" alt="" />
+        <span>AutoShorts</span>
+      </div>
+      <h1>Long recording in.<br /><em>Short clips out.</em></h1>
+      <p class="lede">
+        A local-first desktop app that transcribes your long-form video, ranks the most viral moments with AI,
+        and cuts them into 9:16 vertical clips with captions.
+      </p>
+      <div class="cta">
+        <a class="primary" href="https://github.com/labrats979/autoshorts/releases/latest">Download for macOS, Windows &amp; Linux</a>
+        <a class="secondary" href="https://github.com/labrats979/autoshorts">View source</a>
+      </div>
+      <ul class="features">
+        <li><strong>AI moment ranking</strong><span>Claude, DeepSeek, Gemini, OpenAI, Groq or a local Ollama model scores hooks and picks the best segments.</span></li>
+        <li><strong>Local or cloud transcription</strong><span>Run Whisper offline or use Deepgram for speed.</span></li>
+        <li><strong>Portrait auto-cropping</strong><span>Landscape footage becomes H.264 vertical clips through FFmpeg, ready for Shorts, Reels and TikTok.</span></li>
+        <li><strong>Optional cloud sync</strong><span>Sign in to back up projects, transcripts and clip picks and restore them on another machine.</span></li>
+      </ul>
+      <footer>Your media never leaves your computer. Only project metadata syncs when you sign in.</footer>
+    </main>
+  </body>
+</html>
