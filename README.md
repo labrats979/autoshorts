@@ -153,7 +153,7 @@ Without these keys the app stays fully local. The pieces:
 
 **Clerk**
 1. In the [Clerk dashboard](https://dashboard.clerk.com/), enable **Configure > Native applications** (the desktop app talks to Clerk's native API).
-2. Copy the **Publishable key** into `.env` as `CLERK_PUBLISHABLE_KEY`, and keep the **Secret key** for Vercel.
+2. Copy the **Publishable key** into `.env` as `CLERK_PUBLISHABLE_KEY` (`VITE_CLERK_PUBLISHABLE_KEY` also works), or let the Clerk CLI write it: `clerk auth login`, then `clerk env pull --file .env`. Keep the **Secret key** for Vercel.
 3. Email + password and email codes work. OAuth (Google, GitHub, …) and magic links don't work inside the Tauri webview yet.
 
 **Firebase**
@@ -171,7 +171,7 @@ Without these keys the app stays fully local. The pieces:
 **Vercel**
 1. Import this repository in Vercel with **Root Directory** set to `web`.
 2. Add environment variables: `CLERK_SECRET_KEY` (Clerk secret key) and `FIREBASE_SERVICE_ACCOUNT` (the whole service account JSON).
-3. Put the deployment URL in `.env` as `VITE_AUTH_API_URL` (for example `https://autoshorts.vercel.app`).
+3. Redeploy so the variables take effect, then put the deployment URL in `.env` as `VITE_AUTH_API_URL` (this repo's deployment is `https://autoshorts-mu.vercel.app`). Keep Vercel Authentication limited to preview deployments so the desktop app can reach the production URL.
 
 `VITE_*` values are baked into the frontend at build time, so restart `npm run tauri:dev` or rebuild after changing them. For release builds, add the same names as GitHub repository variables (**Settings > Secrets and variables > Actions > Variables**); the release workflow passes them to the build.
 

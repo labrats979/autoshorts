@@ -651,11 +651,13 @@ fn delete_project(state: tauri::State<'_, AppState>, project_id: String) -> Resu
 }
 
 /// Clerk is optional: read the publishable key from .env at runtime, falling back to the
-/// value baked in at compile time (release builds).
+/// value baked in at compile time (release builds). The VITE_ name is accepted too.
 fn clerk_publishable_key() -> Option<String> {
     std::env::var("CLERK_PUBLISHABLE_KEY")
+        .or_else(|_| std::env::var("VITE_CLERK_PUBLISHABLE_KEY"))
         .ok()
         .or_else(|| option_env!("CLERK_PUBLISHABLE_KEY").map(ToOwned::to_owned))
+        .or_else(|| option_env!("VITE_CLERK_PUBLISHABLE_KEY").map(ToOwned::to_owned))
         .filter(|key| !key.trim().is_empty())
 }
 
