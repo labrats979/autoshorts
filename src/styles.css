@@ -1714,3 +1714,123 @@ button:disabled {
   font-weight: 700;
   color: var(--accent-primary);
 }
+
+/* Cloud sync (Firebase) */
+.cloud-panel {
+  display: grid;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-color);
+}
+
+.cloud-panel-header {
+  display: grid;
+  grid-template-columns: 14px 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cloud-panel-header.muted {
+  color: var(--text-muted);
+}
+
+.cloud-panel-header span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cloud-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.cloud-icon:hover:not(:disabled) {
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.cloud-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.cloud-error {
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-error-text);
+}
+
+.cloud-form {
+  display: grid;
+  gap: 6px;
+}
+
+.cloud-form input {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.cloud-form input:focus {
+  outline: none;
+  border-color: var(--border-color-focus);
+}
+
+.cloud-form-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.cloud-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.cloud-button.primary {
+  color: var(--accent-text);
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.cloud-link {
+  justify-self: start;
+  padding: 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  text-decoration: underline;
+}
+
+.cloud-remote-list {
+  display: grid;
+  gap: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+}

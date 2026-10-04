@@ -448,6 +448,85 @@ impl Database {
         Ok(())
     }
 
+    /// Insert or overwrite a project (with its transcript and candidates) pulled from cloud sync.
+    /// Rendered clips are not synced, so every candidate gets a fresh pending clip row.
+    pub fn import_project(
+        &self,
+        project: &Project,
+        transcript: Option<&Transcript>,
+        candidates: &[Candidate],
+    ) -> Result<()> {
+        let mut conn = self.conn.lock().expect("database mutex poisoned");
+        let tx = conn.transaction()?;
+
+        tx.execute(
+            "INSERT INTO projects (id, name, source_path, source_duration, status, transcription_mode, caption_style, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                source_path = excluded.source_path,
+                source_duration = excluded.source_duration,
+                status = excluded.status,
+                transcription_mode = excluded.transcription_mode,
+                caption_style = excluded.caption_style,
+                created_at = excluded.created_at,
+                updated_at = excluded.updated_at",
+            params![
+                project.id,
+                project.name,
+                project.source_path,
+                project.source_duration,
+                project.status,
+                project.transcription_mode,
+                project.caption_style,
+                project.created_at,
+                project.updated_at
+            ],
+        )?;
+
+        tx.execute("DELETE FROM transcripts WHERE project_id = ?1", params![project.id])?;
+        if let Some(transcript) = transcript {
+            tx.execute(
+                "INSERT INTO transcripts (id, project_id, engine, raw_json, language, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    transcript.id,
+                    project.id,
+                    transcript.engine,
+                    transcript.raw_json,
+                    transcript.language,
+                    transcript.created_at
+                ],
+            )?;
+        }
+
+        tx.execute("DELETE FROM candidates WHERE project_id = ?1", params![project.id])?;
+        for candidate in candidates {
+            tx.execute(
+                "INSERT INTO candidates (id, project_id, start_sec, end_sec, score, hook, rationale, rank, selected)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    candidate.id,
+                    project.id,
+                    candidate.start_sec,
+                    candidate.end_sec,
+                    candidate.score,
+                    candidate.hook,
+                    candidate.rationale,
+                    candidate.rank,
+                    if candidate.selected { 1 } else { 0 }
+                ],
+            )?;
+            tx.execute(
+                "INSERT INTO clips (id, candidate_id, status) VALUES (?1, ?2, 'pending')",
+                params![Uuid::new_v4().to_string(), candidate.id],
+            )?;
+        }
+
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn rename_project(&self, project_id: &str, name: &str) -> Result<()> {
         let conn = self.conn.lock().expect("database mutex poisoned");
         let now = Utc::now().to_rfc3339();

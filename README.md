@@ -17,6 +17,7 @@ This repository implements the desktop app foundation using **Tauri 2 + React + 
 - **Local SQLite Storage**: Saves transcripts, candidates, custom names, and rendering data locally.
 - **Native Project Manager**: Create, open, rename, and delete projects from the dashboard.
 - **Portrait Auto-Cropping**: Automatically center-crops landscape videos to vertical H.264 portrait clips using native `ffmpeg` integration.
+- **Optional Firebase Cloud Sync**: Sign in with email/password to back up projects, transcripts and clip candidates to Firestore and restore them on another device.
 - **Key Warnings**: Built-in visual warnings that identify missing environment variables and prompt you directly in the UI.
 
 ---
@@ -142,6 +143,30 @@ To build and package the native macOS app bundle (`.app` and `.dmg` installer):
 npm run tauri:build
 ```
 The output installers will be built under `src-tauri/target/release/bundle/`.
+
+### 4. Firebase Cloud Sync (Optional)
+Without these keys the app stays fully local. To turn sync on:
+
+1. In the [Firebase console](https://console.firebase.google.com/), open your project and enable **Authentication > Sign-in method > Email/Password** and **Firestore Database**.
+2. Under **Project settings > General > Your apps**, add a Web app and copy its config into `.env`:
+   ```env
+   VITE_FIREBASE_API_KEY=...
+   VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your-project
+   VITE_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
+   VITE_FIREBASE_MESSAGING_SENDER_ID=...
+   VITE_FIREBASE_APP_ID=...
+   ```
+   These are baked into the frontend at build time, so restart `npm run tauri:dev` or rebuild after changing them.
+3. Deploy the Firestore security rules, which limit each user to their own data:
+   ```bash
+   npm install -g firebase-tools
+   firebase login
+   firebase use --add your-project
+   firebase deploy --only firestore:rules
+   ```
+
+Once signed in from the sidebar, projects sync automatically to `users/{uid}/projects/{projectId}` (transcripts are split into `transcriptChunks`). Projects that exist in the cloud but not on the current device show up under the sign-in panel and can be restored with one click. Rendered clip files and source media are not uploaded; a restored project needs its source media at the same path (or re-imported) to render clips.
 
 <a id="support"></a>
 

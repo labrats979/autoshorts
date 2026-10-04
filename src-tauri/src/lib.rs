@@ -651,6 +651,19 @@ fn delete_project(state: tauri::State<'_, AppState>, project_id: String) -> Resu
 }
 
 #[tauri::command]
+fn import_synced_project(
+    state: tauri::State<'_, AppState>,
+    project: Project,
+    transcript: Option<Transcript>,
+    candidates: Vec<Candidate>,
+) -> Result<(), String> {
+    state
+        .db
+        .import_project(&project, transcript.as_ref(), &candidates)
+        .map_err(to_command_error)
+}
+
+#[tauri::command]
 fn rename_project(
     state: tauri::State<'_, AppState>,
     project_id: String,
@@ -691,6 +704,7 @@ pub fn run() {
             render_flat_clip_for_candidate,
             delete_project,
             rename_project,
+            import_synced_project,
             check_youtube_copyright,
             download_youtube_video
         ])

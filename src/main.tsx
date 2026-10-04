@@ -26,6 +26,9 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import "./styles.css";
+import { CloudSyncPanel } from "./CloudSyncPanel";
+import { deleteCloudProject } from "./cloudSync";
+import { currentUid } from "./firebase";
 
 type EnvironmentStatus = {
   dataDir: string;
@@ -183,6 +186,15 @@ function App() {
       return null;
     }
   }, [detail?.transcript]);
+
+  // Anything that should trigger a cloud sync: project rows plus the open project's candidates/transcript.
+  const cloudSyncKey = useMemo(() => {
+    const projectPart = projects.map((p) => `${p.id}:${p.updatedAt}:${p.name ?? ""}`).join("|");
+    const detailPart = detail
+      ? `${detail.transcript?.id ?? ""}:${detail.candidates.map((c) => `${c.id}${c.selected ? "+" : "-"}`).join(",")}`
+      : "";
+    return `${projectPart}#${detailPart}`;
+  }, [projects, detail]);
 
   const selectedCount = detail?.candidates.filter((candidate) => candidate.selected).length ?? 0;
   const clipByCandidate = useMemo(() => {
@@ -538,6 +550,12 @@ function App() {
 
     try {
       await invoke("delete_project", { projectId });
+      const uid = currentUid();
+      if (uid) {
+        await deleteCloudProject(uid, projectId).catch((err) => {
+          setError(`Deleted locally, but the cloud copy could not be removed: ${err instanceof Error ? err.message : String(err)}`);
+        });
+      }
       const nextActiveId = detail?.project.id === projectId ? null : detail?.project.id;
       await refresh(nextActiveId ?? undefined);
     } catch (err) {
@@ -730,6 +748,12 @@ function App() {
               </button>
             ))}
           </section>
+
+          <CloudSyncPanel
+            projects={projects}
+            syncKey={cloudSyncKey}
+            onRestored={(projectId) => void refresh(projectId)}
+          />
         </aside>
 
         <section className="workspace">
