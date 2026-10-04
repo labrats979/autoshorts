@@ -17,7 +17,7 @@ This repository implements the desktop app foundation using **Tauri 2 + React + 
 - **Local SQLite Storage**: Saves transcripts, candidates, custom names, and rendering data locally.
 - **Native Project Manager**: Create, open, rename, and delete projects from the dashboard.
 - **Portrait Auto-Cropping**: Automatically center-crops landscape videos to vertical H.264 portrait clips using native `ffmpeg` integration.
-- **Optional Firebase Cloud Sync**: Sign in with email/password to back up projects, transcripts and clip candidates to Firestore and restore them on another device.
+- **Optional Cloud Sync**: Sign in with Clerk to back up projects, transcripts and clip candidates to Firebase Firestore and restore them on another device.
 - **Key Warnings**: Built-in visual warnings that identify missing environment variables and prompt you directly in the UI.
 
 ---
@@ -144,21 +144,23 @@ npm run tauri:build
 ```
 The output installers will be built under `src-tauri/target/release/bundle/`.
 
-### 4. Firebase Cloud Sync (Optional)
-Without these keys the app stays fully local. To turn sync on:
+### 4. Sign-in and Cloud Sync (Optional)
+Without these keys the app stays fully local. The pieces:
 
-1. In the [Firebase console](https://console.firebase.google.com/), open your project and enable **Authentication > Sign-in method > Email/Password** and **Firestore Database**.
-2. Under **Project settings > General > Your apps**, add a Web app and copy its config into `.env`:
-   ```env
-   VITE_FIREBASE_API_KEY=...
-   VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-   VITE_FIREBASE_PROJECT_ID=your-project
-   VITE_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
-   VITE_FIREBASE_MESSAGING_SENDER_ID=...
-   VITE_FIREBASE_APP_ID=...
-   ```
-   These are baked into the frontend at build time, so restart `npm run tauri:dev` or rebuild after changing them.
-3. Deploy the Firestore security rules, which limit each user to their own data:
+* **Clerk** handles sign-in inside the desktop app (via [`tauri-plugin-clerk`](https://github.com/Nipsuli/tauri-plugin-clerk)).
+* **Firebase Firestore** stores synced projects under `users/{clerkUserId}/projects/{projectId}`.
+* **Vercel** hosts `web/`: a landing page plus `api/firebase-token`, which verifies the Clerk session and returns a Firebase custom token for the same user id. Clerk's built-in Firebase integration is no longer available for new apps, so this function is the bridge.
+
+**Clerk**
+1. In the [Clerk dashboard](https://dashboard.clerk.com/), enable **Configure > Native applications** (the desktop app talks to Clerk's native API).
+2. Copy the **Publishable key** into `.env` as `CLERK_PUBLISHABLE_KEY`, and keep the **Secret key** for Vercel.
+3. Email + password and email codes work. OAuth (Google, GitHub, …) and magic links don't work inside the Tauri webview yet.
+
+**Firebase**
+1. In the [Firebase console](https://console.firebase.google.com/), create a **Firestore Database** and open **Authentication > Get started**. No sign-in providers are needed; the app signs in with custom tokens.
+2. Add a Web app under **Project settings > General > Your apps** and copy its config into the `VITE_FIREBASE_*` variables in `.env`.
+3. Under **Project settings > Service accounts**, generate a private key (JSON) for Vercel.
+4. Deploy the security rules, which limit each user to their own data:
    ```bash
    npm install -g firebase-tools
    firebase login
@@ -166,7 +168,14 @@ Without these keys the app stays fully local. To turn sync on:
    firebase deploy --only firestore:rules
    ```
 
-Once signed in from the sidebar, projects sync automatically to `users/{uid}/projects/{projectId}` (transcripts are split into `transcriptChunks`). Projects that exist in the cloud but not on the current device show up under the sign-in panel and can be restored with one click. Rendered clip files and source media are not uploaded; a restored project needs its source media at the same path (or re-imported) to render clips.
+**Vercel**
+1. Import this repository in Vercel with **Root Directory** set to `web`.
+2. Add environment variables: `CLERK_SECRET_KEY` (Clerk secret key) and `FIREBASE_SERVICE_ACCOUNT` (the whole service account JSON).
+3. Put the deployment URL in `.env` as `VITE_AUTH_API_URL` (for example `https://autoshorts.vercel.app`).
+
+`VITE_*` values are baked into the frontend at build time, so restart `npm run tauri:dev` or rebuild after changing them. For release builds, add the same names as GitHub repository variables (**Settings > Secrets and variables > Actions > Variables**); the release workflow passes them to the build.
+
+Once signed in, projects sync automatically. Projects that exist in the cloud but not on the current device appear in the sidebar and can be restored with one click. Rendered clip files and source media are never uploaded; a restored project needs its source media at the same path (or re-imported) to render clips.
 
 <a id="support"></a>
 

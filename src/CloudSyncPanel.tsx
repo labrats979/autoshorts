@@ -1,14 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
-import {
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  sendPasswordResetEmail,
-  signInWithEmailAndPassword,
-  signOut,
-  type User,
-} from "firebase/auth";
-import { Cloud, CloudOff, DownloadCloud, Loader2, LogOut, RefreshCw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import type { Clerk } from "@clerk/clerk-js";
+import { onAuthStateChanged, signOut, type User } from "firebase/auth";
+import { Cloud, CloudOff, DownloadCloud, Loader2, LogIn, RefreshCw, UserPlus } from "lucide-react";
 import { firebaseAuth, firebaseEnabled } from "./firebase";
+import { loadClerk, signInToFirebase } from "./clerkAuth";
 import { restoreProject, syncAll, type CloudProjectDoc, type SyncedProject } from "./cloudSync";
 
 type Props = {
@@ -18,37 +13,100 @@ type Props = {
   onRestored: (projectId: string) => void;
 };
 
+type ClerkUser = NonNullable<Clerk["user"]>;
+
 const SYNC_DEBOUNCE_MS = 1500;
 
 export function CloudSyncPanel({ projects, syncKey, onRestored }: Props) {
-  const [user, setUser] = useState<User | null>(null);
-  const [authReady, setAuthReady] = useState(!firebaseEnabled);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [authBusy, setAuthBusy] = useState(false);
+  const [clerk, setClerk] = useState<Clerk | null>(null);
+  const [clerkState, setClerkState] = useState<"loading" | "disabled" | "ready" | "error">(
+    firebaseEnabled ? "loading" : "disabled",
+  );
+  const [clerkUser, setClerkUser] = useState<ClerkUser | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [linking, setLinking] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [remoteOnly, setRemoteOnly] = useState<CloudProjectDoc[]>([]);
   const [restoringId, setRestoringId] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const userButtonRef = useRef<HTMLDivElement>(null);
   const projectsRef = useRef(projects);
   projectsRef.current = projects;
   const runningRef = useRef(false);
   const rerunRef = useRef(false);
+  const linkingRef = useRef(false);
 
   useEffect(() => {
     if (!firebaseEnabled) return;
-    return onAuthStateChanged(firebaseAuth(), (nextUser) => {
-      setUser(nextUser);
-      setAuthReady(true);
-      if (!nextUser) {
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+
+    loadClerk()
+      .then((instance) => {
+        if (cancelled) return;
+        if (!instance) {
+          setClerkState("disabled");
+          return;
+        }
+        setClerk(instance);
+        setClerkUser(instance.user ?? null);
+        setClerkState("ready");
+        unsubscribe = instance.addListener(({ user }) => setClerkUser(user ?? null));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setClerkState("error");
+        setError(describe(err));
+      });
+
+    const unsubscribeFirebase = onAuthStateChanged(firebaseAuth(), (user) => {
+      setFirebaseUser(user);
+      if (!user) {
         setRemoteOnly([]);
         setLastSynced(null);
       }
     });
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+      unsubscribeFirebase();
+    };
   }, []);
+
+  // Keep the Firebase session in step with Clerk: same uid when signed in, none when signed out.
+  useEffect(() => {
+    if (clerkState !== "ready" || !clerk) return;
+    if (!clerkUser) {
+      if (firebaseUser) void signOut(firebaseAuth());
+      return;
+    }
+    if (firebaseUser?.uid !== clerkUser.id) linkFirebase(clerk);
+  }, [clerk, clerkState, clerkUser, firebaseUser]);
+
+  function linkFirebase(instance: Clerk) {
+    if (linkingRef.current) return;
+    linkingRef.current = true;
+    setLinking(true);
+    setError(null);
+    signInToFirebase(instance)
+      .catch((err) => setError(describe(err)))
+      .finally(() => {
+        linkingRef.current = false;
+        setLinking(false);
+      });
+  }
+
+  const syncUid = clerkUser && firebaseUser?.uid === clerkUser.id ? firebaseUser.uid : null;
+
+  useEffect(() => {
+    const node = userButtonRef.current;
+    if (!clerk || !clerkUser || !node) return;
+    clerk.mountUserButton(node);
+    return () => clerk.unmountUserButton(node);
+  }, [clerk, clerkUser]);
 
   async function runSync(uid: string) {
     if (runningRef.current) {
@@ -74,51 +132,17 @@ export function CloudSyncPanel({ projects, syncKey, onRestored }: Props) {
   }
 
   useEffect(() => {
-    if (!user) return;
-    const timer = window.setTimeout(() => void runSync(user.uid), SYNC_DEBOUNCE_MS);
+    if (!syncUid) return;
+    const timer = window.setTimeout(() => void runSync(syncUid), SYNC_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [user, syncKey]);
-
-  async function authenticate(mode: "signIn" | "signUp", event?: React.FormEvent) {
-    event?.preventDefault();
-    setAuthBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const auth = firebaseAuth();
-      if (mode === "signIn") {
-        await signInWithEmailAndPassword(auth, email.trim(), password);
-      } else {
-        await createUserWithEmailAndPassword(auth, email.trim(), password);
-      }
-      setPassword("");
-    } catch (err) {
-      setError(describe(err));
-    } finally {
-      setAuthBusy(false);
-    }
-  }
-
-  async function resetPassword() {
-    if (!email.trim()) {
-      setError("Enter your email first.");
-      return;
-    }
-    setError(null);
-    try {
-      await sendPasswordResetEmail(firebaseAuth(), email.trim());
-      setMessage("Password reset email sent.");
-    } catch (err) {
-      setError(describe(err));
-    }
-  }
+  }, [syncUid, syncKey]);
 
   async function restore(projectId: string) {
-    if (!user) return;
+    if (!syncUid) return;
     setRestoringId(projectId);
     setError(null);
     try {
-      await restoreProject(user.uid, projectId);
+      await restoreProject(syncUid, projectId);
       setRemoteOnly((current) => current.filter((doc) => doc.project.id !== projectId));
       onRestored(projectId);
     } catch (err) {
@@ -128,21 +152,36 @@ export function CloudSyncPanel({ projects, syncKey, onRestored }: Props) {
     }
   }
 
-  if (!firebaseEnabled) {
+  function openClerk(mode: "signIn" | "signUp") {
+    if (!clerk) return;
+    setError(null);
+    try {
+      if (mode === "signIn") clerk.openSignIn();
+      else clerk.openSignUp();
+    } catch (err) {
+      setError(`Clerk sign-in could not open: ${describe(err)}`);
+    }
+  }
+
+  if (clerkState === "disabled") {
     return (
-      <section className="cloud-panel" aria-label="Cloud sync">
+      <section className="cloud-panel" aria-label="Account">
         <div className="cloud-panel-header muted">
           <CloudOff size={14} />
           <span>Cloud sync off</span>
         </div>
-        <p className="cloud-hint">Add VITE_FIREBASE_* keys to .env to enable Firebase sync.</p>
+        <p className="cloud-hint">
+          {firebaseEnabled
+            ? "Add CLERK_PUBLISHABLE_KEY to .env to enable sign-in."
+            : "Add the Clerk and Firebase keys to .env to enable sign-in and sync."}
+        </p>
       </section>
     );
   }
 
-  if (!authReady) {
+  if (clerkState === "loading") {
     return (
-      <section className="cloud-panel" aria-label="Cloud sync">
+      <section className="cloud-panel" aria-label="Account">
         <div className="cloud-panel-header muted">
           <Loader2 className="spin" size={14} />
           <span>Connecting…</span>
@@ -151,73 +190,54 @@ export function CloudSyncPanel({ projects, syncKey, onRestored }: Props) {
     );
   }
 
-  if (!user) {
+  if (clerkState === "error" || !clerkUser) {
     return (
-      <section className="cloud-panel" aria-label="Cloud sync">
+      <section className="cloud-panel" aria-label="Account">
         <div className="cloud-panel-header">
           <Cloud size={14} />
-          <span>Sign in to back up projects</span>
+          <span>Sign in to sync projects</span>
         </div>
-        <form className="cloud-form" onSubmit={(event) => void authenticate("signIn", event)}>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            autoComplete="email"
-            required
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            autoComplete="current-password"
-            minLength={6}
-            required
-          />
-          <div className="cloud-form-actions">
-            <button type="submit" className="cloud-button primary" disabled={authBusy}>
-              {authBusy ? <Loader2 className="spin" size={13} /> : null}
-              Sign in
-            </button>
-            <button
-              type="button"
-              className="cloud-button"
-              disabled={authBusy}
-              onClick={() => void authenticate("signUp")}
-            >
-              Create account
-            </button>
-          </div>
-          <button type="button" className="cloud-link" onClick={() => void resetPassword()}>
-            Forgot password?
+        <div className="cloud-form-actions">
+          <button className="cloud-button primary" disabled={!clerk} onClick={() => openClerk("signIn")}>
+            <LogIn size={13} />
+            Sign in
           </button>
-        </form>
-        {message && <p className="cloud-hint">{message}</p>}
+          <button className="cloud-button" disabled={!clerk} onClick={() => openClerk("signUp")}>
+            <UserPlus size={13} />
+            Sign up
+          </button>
+        </div>
         {error && <p className="cloud-error">{error}</p>}
       </section>
     );
   }
 
+  const email = clerkUser.primaryEmailAddress?.emailAddress ?? clerkUser.username ?? "Signed in";
+
   return (
-    <section className="cloud-panel" aria-label="Cloud sync">
-      <div className="cloud-panel-header">
-        {syncing ? <Loader2 className="spin" size={14} /> : <Cloud size={14} />}
-        <span title={user.email ?? undefined}>{user.email}</span>
-        <button className="cloud-icon" title="Sync now" disabled={syncing} onClick={() => void runSync(user.uid)}>
-          <RefreshCw size={13} />
-        </button>
-        <button className="cloud-icon" title="Sign out" onClick={() => void signOut(firebaseAuth())}>
-          <LogOut size={13} />
+    <section className="cloud-panel" aria-label="Account">
+      <div className="cloud-account">
+        <div ref={userButtonRef} className="cloud-user-button" />
+        <span title={email}>{email}</span>
+        <button
+          className="cloud-icon"
+          title={syncUid ? "Sync now" : "Reconnect cloud sync"}
+          disabled={syncing || linking}
+          onClick={() => (syncUid ? void runSync(syncUid) : clerk && linkFirebase(clerk))}
+        >
+          {syncing || linking ? <Loader2 className="spin" size={13} /> : <RefreshCw size={13} />}
         </button>
       </div>
       <p className="cloud-hint">
-        {syncing
-          ? "Syncing…"
-          : lastSynced
-            ? `Synced ${lastSynced.toLocaleTimeString()}`
-            : "Waiting to sync"}
+        {linking
+          ? "Connecting to cloud…"
+          : !syncUid
+            ? "Not connected to cloud sync"
+            : syncing
+              ? "Syncing…"
+              : lastSynced
+                ? `Synced ${lastSynced.toLocaleTimeString()}`
+                : "Waiting to sync"}
       </p>
 
       {remoteOnly.length > 0 && (
@@ -249,25 +269,7 @@ function fileName(path: string) {
 }
 
 function describe(err: unknown): string {
-  const raw = err instanceof Error ? err.message : String(err);
-  // Firebase errors look like "Firebase: Error (auth/wrong-password)."
-  const code = raw.match(/\(([a-z-]+\/[a-z-]+)\)/)?.[1];
-  switch (code) {
-    case "auth/invalid-credential":
-    case "auth/wrong-password":
-    case "auth/user-not-found":
-      return "Incorrect email or password.";
-    case "auth/email-already-in-use":
-      return "An account with this email already exists. Sign in instead.";
-    case "auth/weak-password":
-      return "Password must be at least 6 characters.";
-    case "auth/invalid-email":
-      return "That email address is not valid.";
-    case "auth/network-request-failed":
-      return "Network error. Check your connection.";
-    case "auth/operation-not-allowed":
-      return "Email/password sign-in is disabled in the Firebase console.";
-    default:
-      return raw;
-  }
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return JSON.stringify(err);
 }

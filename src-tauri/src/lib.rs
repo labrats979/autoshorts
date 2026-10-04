@@ -694,11 +694,15 @@ pub fn run() {
         .plugin(tauri_plugin_http::init());
 
     if let Some(key) = clerk_publishable_key() {
-        builder = builder.plugin(
-            tauri_plugin_clerk::ClerkPluginBuilder::new()
-                .publishable_key(key)
-                .build(),
-        );
+        builder = builder
+            // Persists the Clerk session so users stay signed in across restarts.
+            .plugin(tauri_plugin_store::Builder::new().build())
+            .plugin(
+                tauri_plugin_clerk::ClerkPluginBuilder::new()
+                    .publishable_key(key)
+                    .with_tauri_store()
+                    .build(),
+            );
     }
 
     builder
